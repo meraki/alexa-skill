@@ -12,15 +12,6 @@ http://amzn.to/1LGWsLG
 """
 
 
-"""
-first, import a handful of libraries to use their pre-written
-functions and save lines of code. if you need to import external
-libraries (libraries not baked into aws lambda by default), then you will need
-to create a deployment package and upload it to lambda as opposed to using
-the lambda in-line code editor.
-"""
-
-
 from datetime import datetime, time, date
 import merakiapi
 # snmp_helper functions courtesy of Kirk Byers: https://github.com/ktbyers/pynet/blob/master/snmp/snmp_helper.py
@@ -32,9 +23,7 @@ import re
 
 
 """
-meraki_info.py is a definitions file in the same directory as this script.
-importing meraki_info lets you omit private info from this file, so it can be shared easily without needing to
-scrub personal bits of info embedded into the script (like your api key, org id, network id, etc...)
+meraki_info.py is a simple definitions file containing private info that can be omitted from this file
 
 example of meraki_info.py contents:
 ***
@@ -139,7 +128,7 @@ def on_intent(intent_request, session):
     # dashboard api - read license state
     elif intent_name == "GetLicense":
         return get_license_report()
-    # snmp - snmp get oid for devStatus and respond with offline devicec
+    # snmp - snmp get oid for devStatus and respond with offline devices
     elif intent_name == "GetStatus":
         return get_network_status()
     # meraki easter egg
@@ -217,11 +206,7 @@ def get_all_orgids():
 # Get the org-name
 def get_orgname(id):
     """
-    This function takes the output of 'get_orginfo' above and iterates through
-    each "k, v" (user defined btw / "k, v" could easily be "var1, var2" for
-    example). When a key ("k") called 'name' is found, the value ("v") is
-    assigned to a variable called "org_name" (user defined again) and returned
-    as the output of this function.
+    This function returns the name of a given org id
     """
     result = merakiapi.getorg(my_api_key, id)
     name = result['name']
@@ -232,7 +217,7 @@ def get_orgname(id):
 def get_org_inv_count():
     """
     This function uses requests to GET the org inventory, counts the model
-    types, and writes them to a dictionary called org_inventory.
+    types, and writes them to a dictionary called org_inventory
     """
     # creates the dictionary called org_inventory to store key,value pairs
     org_inventory = {}
@@ -243,9 +228,9 @@ def get_org_inv_count():
         else:
             # iterate through the json response from the GET inventory
             """
-            if the model (example:'MX65') does not already exist in the dictionary - 'org_inventory',
+            if the model (example:'MX65') does not already exist in the dictionary: 'org_inventory',
             set the value of org_inventory['MX65'] to 1 (for the first one). if 'MX65' is an existing
-            key in 'org_inventory', then +1 the count of org_inventory['MX65'].
+            key in 'org_inventory', then +1 the value (count) of org_inventory['MX65'].
             """
             if not row['model'] in org_inventory:
                 org_inventory[(row['model'])] = 1
@@ -254,7 +239,7 @@ def get_org_inv_count():
     return org_inventory
 
 
-# Get network device inventory and create a list of MR's with the "guest" tag to a list
+# Get network device inventory and create a list of MR's with the "guest_wireless" tag
 def get_guest_ap_list():
     """
     This function uses requests to GET a network's devices and creates a list of MR's
@@ -277,7 +262,8 @@ def get_guest_ap_list():
                 continue
     return serial_list
 
-# Custom function for the nested dictionary
+# Custom function for the nested dictionary encountered in the license report function
+# nested key, values within a value
 def nested(d):
     lic_dev = 0
     for k, v in d.iteritems():
@@ -287,6 +273,7 @@ def nested(d):
             lic_list = v
             for y in lic_list.keys():
                 if y == 'SM':
+                    # only including hardware in this function
                     lic_list.pop(y)
             for z in lic_list.values():
                 lic_dev += z
@@ -297,13 +284,14 @@ def nested(d):
 
 # --------------- Meraki custom functions ------------------
 
-# get the psk for a specific ssid @ ssid_url
+
+# get the psk for a specific ssid
 def get_ssid_psk():
     get_ssid_pw = merakiapi.getssiddetail(my_api_key, my_net_id, ssidnum=3)
     pw = get_ssid_pw['psk']
     return pw
 
-
+# get the guest ssid pw and send to a tropo application to send the psk to 'my_tropo_phone' via sms
 def get_wifi_pw():
     session_attributes = {}
     card_title = "WiFi Password SMS"
@@ -329,9 +317,8 @@ def get_wifi_pw():
     return build_response(session_attributes, build_speechlet_response(
         card_title, speech_output, reprompt_text, should_end_session))
 
-
+# get all org license state and read back organization names with license expiration < 90 days
 def get_license_report():
-    """Reads back organizations with license expiration < 90 days"""
     session_attributes = {}
     card_title = "License report"
 
@@ -367,7 +354,7 @@ def get_license_report():
         card_title, speech_output, reprompt_text, should_end_session))
 
 
-# Get the devName and devStatus SNMP OIDs
+# Get the devName and devStatus SNMP OIDs and respond with the names of offline devices
 def get_network_status():
     """ Grabs network status (via SNMP for now) and creates the 'speech_output'
     """
@@ -421,17 +408,15 @@ def get_network_status():
         card_title, speech_output, reprompt_text, should_end_session))
 
 
+# grabs inventory and creates a reply for the user
 def get_inventory():
-    """ Grabs inventory and creates a reply for the user
-    """
     session_attributes = {}
     card_title = "Inventory"
-
     # Create a new list of model names and their count in inventory
     speech_list = []
-    # get_orgname()
+    # get the org name
     org_name = get_orgname(my_org_id)
-    # get_org_inv_count()
+    # get device inventory and counts per-model
     inv = get_org_inv_count()
     # Loop through the inventory and create a list of device models and their
     # respective count to use in 'speech_output'
@@ -467,9 +452,8 @@ def close_shop():
         card_title, speech_output, reprompt_text, should_end_session))
 
 
+# enables the guest ssid
 def open_shop():
-    """ Enables the Guest SSID.
-    """
     session_attributes = {}
     card_title = "Open the shop"
     payload = json.dumps({"enabled": 'true'})
@@ -485,26 +469,8 @@ def open_shop():
         card_title, speech_output, reprompt_text, should_end_session))
 
 
-def get_roadmap():
-    """ A silly easter egg for Merakians =)
-    """
-    session_attributes = {}
-    card_title = "roadmap"
-    speech_output = "The first rule of Meraki roadmaps, " \
-                    "is we do not talk about Meraki roadmaps. "
-    # If the user either does not reply to the welcome message or says something
-    # that is not understood, they will be prompted again with this text.
-    reprompt_text = ""
-    should_end_session = True
-    return build_response(session_attributes, build_speechlet_response(
-        card_title, speech_output, reprompt_text, should_end_session))
-
-
-# Create a list of MR's with the "guest" tag and count clients on guest ip subnet
+# create a list of MR's with the "guest" tag and count clients on the guest ip subnet
 def get_guest_count():
-    """ Creates a list of MR's with the 'guest_wireless' tag
-    Counts clients on guest ip subnet
-    """
     session_attributes = {}
     card_title = "Guest WiFi User Count"
     sn_list = get_guest_ap_list()
@@ -526,7 +492,19 @@ def get_guest_count():
         card_title, speech_output, reprompt_text, should_end_session))
 
 
-# --------------- Helpers that build all of the responses ----------------------
+# an easter egg for Merakians =)
+def get_roadmap():
+    session_attributes = {}
+    card_title = "roadmap"
+    speech_output = "The first rule of Meraki roadmaps, " \
+                    "is we do not talk about Meraki roadmaps. "
+    reprompt_text = ""
+    should_end_session = True
+    return build_response(session_attributes, build_speechlet_response(
+        card_title, speech_output, reprompt_text, should_end_session))
+
+
+# --------------- Helper functions that build the responses ----------------------
 
 
 def build_speechlet_response(title, output, reprompt_text, should_end_session):
