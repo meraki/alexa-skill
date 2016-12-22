@@ -478,6 +478,7 @@ def get_guest_count():
     for sn in sn_list:
         result = merakiapi.getclients(my_api_key, sn, timestamp=900)
         for row in result:
+            # simple regex filtering on a specific ip subnet
             subnet_regex = re.compile('10.4.17')
             match = subnet_regex.search(str(row['ip']))
             if match is not None:
